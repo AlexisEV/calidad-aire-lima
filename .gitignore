@@ -1,0 +1,21 @@
+# entorno virtual
+.venv/
+venv/
+
+# datos crudos pesados (se regeneran con src/descargar_datos.py)
+datos/crudos/*
+!datos/crudos/.gitkeep
+
+# cache de python y jupyter
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+
+# archivos del sistema y del editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# streamlit
+.streamlit/secrets.toml
