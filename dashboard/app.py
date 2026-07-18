@@ -225,6 +225,16 @@ with tab_mapa:
         .agg(valor=(clave, "mean"), lat=("latitud", "first"), lon=("longitud", "first"))
         .reset_index()
     )
+    # excluir estaciones sin mediciones en el periodo filtrado
+    # (el promedio nan no se puede dibujar como tamanho de burbuja)
+    sin_datos = resumen_mapa[resumen_mapa["valor"].isna()]["estacion"].tolist()
+    resumen_mapa = resumen_mapa.dropna(subset=["valor"])
+    if sin_datos:
+        nombres = ", ".join(e.replace("_", " ").title() for e in sin_datos)
+        st.info(f"sin mediciones de {nombre_contaminante} en el periodo filtrado: {nombres}")
+    if resumen_mapa.empty:
+        st.warning("ninguna estación tiene mediciones en el periodo filtrado")
+        st.stop()
     figura_mapa = px.scatter_map(
         resumen_mapa,
         lat="lat",
