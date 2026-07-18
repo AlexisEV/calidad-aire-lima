@@ -2,6 +2,8 @@
 
 ¿Qué tan contaminado está el aire de Lima y por qué empeora en invierno? Este proyecto combina datos de calidad del aire de SENAMHI entre 2015 y 2024 con información climática de ERA5 para cada estación de monitoreo. El proceso de descarga, limpieza, análisis y visualización se ejecuta con solo dos scripts y puede reproducirse fácilmente.
 
+**Demo en vivo**: [calidad-aire-de-lima.streamlit.app](https://calidad-aire-de-lima.streamlit.app)
+
 ![PM2.5 mensual en Lima](imagenes/serie_mensual_pm25.png)
 
 ## Hallazgos
@@ -21,6 +23,8 @@ También se detectó que los datos oficiales estaban registrados en UTC y no en 
 ## Dashboard
 
 Aplicación en Streamlit con filtros por contaminante, estación y año. Incluye gráficos de evolución, comparación entre estaciones, patrones por hora y estación del año, relación con la temperatura y el viento, y un mapa de las estaciones.
+
+Está desplegada en [calidad-aire-de-lima.streamlit.app](https://calidad-aire-de-lima.streamlit.app); para correrla en local:
 
 ```bash
 streamlit run dashboard/app.py
@@ -52,7 +56,8 @@ Los datos originales no están incluidos en el repositorio, pero el script puede
 ├── src/            # descarga y limpieza
 ├── notebooks/      # analisis exploratorio (01 contaminantes, 02 cruce con clima)
 ├── dashboard/      # app streamlit
-└── imagenes/       # figuras del readme
+├── imagenes/       # figuras del readme
+└── Docs/           # definicion, plan, decisiones tecnicas y glosario
 ```
 
 ## Fuentes y limitaciones
