@@ -20,9 +20,15 @@ En 2020, la cuarentena redujo el tránsito y el PM2.5 cayó 25 % respecto a 2019
 
 También se detectó que los datos oficiales estaban registrados en UTC y no en la hora de Lima. La pista fueron los picos de contaminación de Año Nuevo, que aparecían cinco horas después de lo esperado. Corregir este desfase fue necesario para relacionar correctamente la contaminación con el clima.
 
+## ¿Se puede predecir el PM2.5 de mañana?
+
+Como extensión, un modelo predice la media diaria de PM2.5 del día siguiente en cada estación, usando la historia reciente del contaminante, el clima del día siguiente (que en la práctica daría el pronóstico) y el calendario. La evaluación es temporal: se entrena con 2015–2022 y se prueba sobre 2023–2024, un periodo que el modelo nunca vio, comparando siempre contra la línea base de persistencia (mañana estará igual que hoy).
+
+Sobre 2,445 días de prueba, un random forest logra un MAE de 3.57 µg/m³ frente a 3.90 de la persistencia: una mejora de 8.5 %, consistente entre estaciones y métricas. El margen es modesto porque el PM2.5 diario tiene mucha inercia — el valor de hoy ya explica la mayor parte del de mañana — y esa lectura honesta es justamente el punto del ejercicio: sin línea base, un MAE de 3.57 sonaría mejor de lo que es. El detalle completo está en el notebook 03 y en la pestaña de predicción del dashboard.
+
 ## Dashboard
 
-Aplicación en Streamlit con filtros por contaminante, estación y año. Incluye gráficos de evolución, comparación entre estaciones, patrones por hora y estación del año, relación con la temperatura y el viento, y un mapa de las estaciones.
+Aplicación en Streamlit con filtros por contaminante, estación y año. Incluye gráficos de evolución, comparación entre estaciones, patrones por hora y estación del año, relación con la temperatura y el viento, un mapa de las estaciones y una pestaña con el modelo de predicción del día siguiente comparado contra su línea base.
 
 Está desplegada en [calidad-aire-de-lima.streamlit.app](https://calidad-aire-de-lima.streamlit.app); para correrla en local:
 
@@ -42,6 +48,9 @@ pip install -r requirements.txt
 python src/descargar_datos.py
 python src/limpieza.py
 
+# modelo de prediccion de pm2.5 (metricas + parquet para el dashboard)
+python src/prediccion.py
+
 # analisis y dashboard
 jupyter lab notebooks/
 streamlit run dashboard/app.py
@@ -53,11 +62,10 @@ Los datos originales no están incluidos en el repositorio, pero el script puede
 
 ```
 ├── datos/          # crudos (no versionados) y procesados (parquet)
-├── src/            # descarga y limpieza
-├── notebooks/      # analisis exploratorio (01 contaminantes, 02 cruce con clima)
+├── src/            # descarga, limpieza y modelo de prediccion
+├── notebooks/      # analisis (01 contaminantes, 02 cruce con clima, 03 prediccion)
 ├── dashboard/      # app streamlit
-├── imagenes/       # figuras del readme
-└── Docs/           # definicion, plan, decisiones tecnicas y glosario
+└── imagenes/       # figuras del readme
 ```
 
 ## Fuentes y limitaciones

@@ -36,6 +36,12 @@ def cargar_combinado() -> pd.DataFrame:
     return pd.read_parquet(CARPETA_PROCESADOS / "combinado.parquet")
 
 
+@st.cache_data
+def cargar_predicciones() -> pd.DataFrame:
+    """cargar las predicciones del periodo de prueba generadas por src/prediccion.py."""
+    return pd.read_parquet(CARPETA_PROCESADOS / "predicciones_pm25.parquet")
+
+
 def serie_diaria(datos: pd.DataFrame, contaminante: str) -> pd.DataFrame:
     """calcular la media diaria del contaminante por estacion."""
     return (
@@ -97,8 +103,8 @@ peor = seleccion.groupby("estacion")[clave].mean().idxmax()
 col3.metric("estación más contaminada", peor.replace("_", " ").title())
 
 # ---------- pestanhas ----------
-tab_serie, tab_comparar, tab_patrones, tab_mapa, tab_hallazgos = st.tabs(
-    ["📈 Serie de tiempo", "📊 Comparar estaciones", "🕐 Patrones", "🗺️ Mapa", "💡 Hallazgos"]
+tab_serie, tab_comparar, tab_patrones, tab_mapa, tab_prediccion, tab_hallazgos = st.tabs(
+    ["📈 Serie de tiempo", "📊 Comparar estaciones", "🕐 Patrones", "🗺️ Mapa", "🔮 Predicción", "💡 Hallazgos"]
 )
 
 with tab_serie:
@@ -253,6 +259,102 @@ with tab_mapa:
     )
     st.plotly_chart(figura_mapa, width="stretch")
     st.caption("tamaño y color según el promedio del contaminante en el periodo filtrado")
+
+with tab_prediccion:
+    st.markdown("#### ¿Se puede predecir el PM2.5 de mañana?")
+    st.markdown(
+        "Un random forest entrenado con 2015–2022 (historia reciente de PM2.5, clima del día "
+        "siguiente y calendario) predice la media diaria del día siguiente por estación. "
+        "Se evalúa sobre 2023–2024, un periodo que el modelo nunca vio, y se compara contra "
+        "la línea base de persistencia (*mañana estará igual que hoy*): en series con tanta "
+        "inercia, superar esa referencia es lo único que cuenta. Detalles y decisiones en el "
+        "notebook 03 del repositorio."
+    )
+    predicciones = cargar_predicciones()
+
+    # calcular las metricas del periodo de prueba completo
+    error_persistencia = (predicciones["pm25_manhana"] - predicciones["pred_persistencia"]).abs().mean()
+    error_lineal = (predicciones["pm25_manhana"] - predicciones["pred_lineal"]).abs().mean()
+    error_bosque = (predicciones["pm25_manhana"] - predicciones["pred_bosque"]).abs().mean()
+    mejora_pct = 100 * (error_persistencia - error_bosque) / error_persistencia
+
+    col_a, col_b, col_c = st.columns(3)
+    col_a.metric("MAE persistencia (línea base)", f"{error_persistencia:.2f} µg/m³")
+    col_b.metric("MAE regresión lineal", f"{error_lineal:.2f} µg/m³")
+    col_c.metric(
+        "MAE random forest",
+        f"{error_bosque:.2f} µg/m³",
+        delta=f"-{mejora_pct:.1f} % vs línea base",
+        delta_color="inverse",
+    )
+    st.caption(
+        f"{len(predicciones):,} días de prueba (2023–2024) en las 7 estaciones. La pestaña no "
+        "responde a los filtros laterales: el periodo de evaluación es fijo por diseño."
+    )
+
+    # comparar prediccion y realidad en la estacion elegida
+    estacion_pred = st.selectbox(
+        "Estación",
+        sorted(predicciones["estacion"].unique()),
+        format_func=lambda e: e.replace("_", " ").title(),
+    )
+    serie_pred = predicciones[predicciones["estacion"] == estacion_pred].sort_values("fecha")
+    mae_estacion_base = (serie_pred["pm25_manhana"] - serie_pred["pred_persistencia"]).abs().mean()
+    mae_estacion_bosque = (serie_pred["pm25_manhana"] - serie_pred["pred_bosque"]).abs().mean()
+
+    figura_pred = go.Figure()
+    figura_pred.add_scatter(
+        x=serie_pred["fecha"], y=serie_pred["pm25_manhana"],
+        mode="lines", name="PM2.5 real", line=dict(color="gray", width=1.5),
+    )
+    figura_pred.add_scatter(
+        x=serie_pred["fecha"], y=serie_pred["pred_bosque"],
+        mode="lines", name="predicción (random forest)", line=dict(color="crimson", width=1.5),
+    )
+    figura_pred.update_layout(
+        height=440,
+        legend=dict(orientation="h", y=-0.15),
+        yaxis_title="PM2.5 medio diario (µg/m³)",
+        title=(
+            f"predicción del día siguiente vs realidad — MAE {mae_estacion_bosque:.2f} µg/m³ "
+            f"(línea base: {mae_estacion_base:.2f})"
+        ),
+    )
+    st.plotly_chart(figura_pred, width="stretch")
+
+    # desglosar el error por estacion para ver donde ayuda el modelo
+    mae_por_estacion = (
+        predicciones.assign(
+            abs_persistencia=(predicciones["pm25_manhana"] - predicciones["pred_persistencia"]).abs(),
+            abs_bosque=(predicciones["pm25_manhana"] - predicciones["pred_bosque"]).abs(),
+        )
+        .groupby("estacion")[["abs_persistencia", "abs_bosque"]]
+        .mean()
+        .sort_values("abs_bosque")
+    )
+    figura_mae = go.Figure()
+    figura_mae.add_bar(
+        y=[e.replace("_", " ").title() for e in mae_por_estacion.index],
+        x=mae_por_estacion["abs_persistencia"],
+        orientation="h", name="persistencia (mañana = hoy)", marker_color="lightgray",
+    )
+    figura_mae.add_bar(
+        y=[e.replace("_", " ").title() for e in mae_por_estacion.index],
+        x=mae_por_estacion["abs_bosque"],
+        orientation="h", name="random forest", marker_color="steelblue",
+    )
+    figura_mae.update_layout(
+        height=380, barmode="group",
+        legend=dict(orientation="h", y=-0.2),
+        xaxis_title="MAE en el periodo de prueba (µg/m³)",
+        title="error por estación: modelo vs línea base",
+    )
+    st.plotly_chart(figura_mae, width="stretch")
+    st.caption(
+        "la mejora es modesta (el PM2.5 diario tiene mucha inercia) pero consistente: el modelo "
+        "ayuda más en las estaciones volátiles como Carabayllo y San Juan de Lurigancho. La serie "
+        "termina en mayo de 2024, así que es un ejercicio retrospectivo, no un pronóstico en vivo."
+    )
 
 with tab_hallazgos:
     st.markdown(

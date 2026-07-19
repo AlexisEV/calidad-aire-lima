@@ -8,3 +8,4 @@ streamlit
 plotly
 openpyxl
 statsmodels
+scikit-learn
